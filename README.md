@@ -26,3 +26,20 @@ text### 4. Créer `requirements.txt`
 ```txt
 pandas>=2.0
 plotly>=5.0
+
+# Togo Digital Inclusion Dashboard
+
+**Défi 02 · Économie Numérique · Togo AI Lab**
+
+## Lancement rapide
+
+```bash
+pip install -r requirements.txt
+python -m src.generate_dashboard
+Ouvrir ensuite : output/dashboard_togo_digital.html
+Structure
+
+src/load_data.py → chargement des CSV
+src/process_data.py → agrégations et ratios
+src/charts.py → graphiques Plotly
+src/generate_dashboard.py → assemblage HTML
