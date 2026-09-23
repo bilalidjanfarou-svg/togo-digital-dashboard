@@ -1,5 +1,9 @@
 """
-Dashboard interactif avec barre latérale
+Dashboard final amélioré
+- Sidebar
+- Filtre par région
+- Nouveaux graphiques
+- Design soigné
 Défi 02 - Togo AI Lab
 """
 
@@ -26,15 +30,18 @@ from src.charts import (
     chart_agents_by_region,
     chart_etab_by_region,
     chart_access_ratios,
+    chart_agents_by_operator,
+    chart_etab_by_category,
 )
 from src.map_chart import chart_map
+from src.region_stats import build_region_stats, stats_to_json
 
 OUTPUT_DIR = Path(__file__).parent.parent / "output"
 OUTPUT_DIR.mkdir(exist_ok=True)
 
 
 def main():
-    print("1. Chargement des données...")
+    print("1. Chargement...")
     internet = load_internet_usage()
     telecom = load_telecom()
     agents = load_agents()
@@ -46,13 +53,15 @@ def main():
     e_reg = etab_by_region(etab)
     p_reg = region_population(pop)
     ratios = compute_ratios(a_reg, e_reg, p_reg)
+    region_stats = build_region_stats(agents, etab, ratios)
+    region_json = stats_to_json(region_stats)
 
     total_pop = int(pop[pop["admin_unit"] == "TOGO"]["population"].values[0])
     latest_pen = float(internet.iloc[-1]["penetration"])
     n_agents = len(agents)
     n_etab = len(etab)
 
-    print("3. Création des graphiques...")
+    print("3. Graphiques...")
     figs = {
         "internet": chart_internet_evolution(internet),
         "telecom_sub": chart_telecom_subscribers(telecom),
@@ -62,10 +71,11 @@ def main():
         "etab_reg": chart_etab_by_region(e_reg),
         "ratios": chart_access_ratios(ratios),
         "map": chart_map(agents, etab),
+        "operators": chart_agents_by_operator(agents),
+        "categories": chart_etab_by_category(etab),
     }
 
-    print("4. Conversion HTML des graphiques...")
-    # Premier graphique charge Plotly (CDN), les autres non
+    print("4. Conversion HTML...")
     divs = {}
     first = True
     for key, fig in figs.items():
@@ -75,11 +85,15 @@ def main():
         )
         first = False
 
-    ratios_html = ratios.to_html(
-        index=False, float_format="%.1f", border=0
+    ratios_html = ratios.to_html(index=False, float_format="%.1f", border=0)
+
+    # Options du select
+    region_options = "".join(
+        f'<option value="{r}">{r.title() if r != "TOUTES" else "Toutes les régions"}</option>'
+        for r in region_stats.keys()
     )
 
-    print("5. Assemblage du dashboard avec sidebar...")
+    print("5. Assemblage...")
 
     html = f"""<!DOCTYPE html>
 <html lang="fr">
@@ -88,36 +102,52 @@ def main():
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Togo Digital Inclusion Dashboard | Défi 02</title>
   <style>
+    :root {{
+      --sidebar-w: 250px;
+      --bg: #f0f4f8;
+      --card: #ffffff;
+      --text: #0f172a;
+      --muted: #64748b;
+      --accent: #0ea5e9;
+      --sidebar: #0b1220;
+    }}
     * {{ box-sizing: border-box; margin: 0; padding: 0; }}
     body {{
-      font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
-      background: #f1f5f9;
-      color: #0f172a;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
       display: flex;
       min-height: 100vh;
     }}
 
-    /* ===== SIDEBAR ===== */
+    /* SIDEBAR */
     .sidebar {{
-      width: 260px;
-      background: #0f172a;
-      color: white;
-      padding: 24px 16px;
+      width: var(--sidebar-w);
+      background: var(--sidebar);
+      color: #e2e8f0;
+      padding: 22px 14px;
       position: fixed;
-      top: 0; left: 0; bottom: 0;
+      inset: 0 auto 0 0;
       overflow-y: auto;
-      z-index: 100;
+      z-index: 50;
+      display: flex;
+      flex-direction: column;
     }}
-    .sidebar h1 {{
-      font-size: 16px;
+    .brand {{
+      padding: 4px 10px 20px;
+      border-bottom: 1px solid #1e293b;
+      margin-bottom: 16px;
+    }}
+    .brand h1 {{
+      font-size: 15px;
       font-weight: 700;
-      margin-bottom: 4px;
-      line-height: 1.3;
+      color: #fff;
+      line-height: 1.35;
     }}
-    .sidebar .subtitle {{
-      font-size: 12px;
-      color: #94a3b8;
-      margin-bottom: 28px;
+    .brand p {{
+      font-size: 11px;
+      color: #64748b;
+      margin-top: 4px;
     }}
     .nav-btn {{
       display: block;
@@ -125,263 +155,363 @@ def main():
       text-align: left;
       background: transparent;
       border: none;
-      color: #cbd5e1;
-      padding: 11px 14px;
+      color: #94a3b8;
+      padding: 10px 12px;
       border-radius: 8px;
-      font-size: 13.5px;
+      font-size: 13px;
       font-weight: 500;
       cursor: pointer;
-      margin-bottom: 4px;
-      transition: all 0.15s;
+      margin-bottom: 3px;
+      transition: 0.15s;
     }}
-    .nav-btn:hover {{
-      background: #1e293b;
-      color: white;
-    }}
+    .nav-btn:hover {{ background: #1e293b; color: #f1f5f9; }}
     .nav-btn.active {{
-      background: #0ea5e9;
-      color: white;
+      background: var(--accent);
+      color: #fff;
     }}
     .sidebar-footer {{
-      position: absolute;
-      bottom: 16px;
-      left: 16px;
-      right: 16px;
-      font-size: 11px;
-      color: #64748b;
+      margin-top: auto;
+      padding: 14px 10px 4px;
       border-top: 1px solid #1e293b;
-      padding-top: 12px;
+      font-size: 10.5px;
+      color: #475569;
+      line-height: 1.5;
     }}
 
-    /* ===== CONTENU PRINCIPAL ===== */
+    /* MAIN */
     .main {{
-      margin-left: 260px;
+      margin-left: var(--sidebar-w);
       flex: 1;
-      padding: 28px 32px;
-      max-width: 1100px;
+      padding: 24px 28px 40px;
+      max-width: 1080px;
     }}
-    .page-title {{
-      font-size: 22px;
+    .topbar {{
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 22px;
+    }}
+    .topbar h2 {{
+      font-size: 20px;
       font-weight: 700;
-      margin-bottom: 6px;
     }}
-    .page-desc {{
-      font-size: 14px;
-      color: #64748b;
-      margin-bottom: 24px;
+    .filter-box {{
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--card);
+      padding: 8px 12px;
+      border-radius: 10px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
     }}
+    .filter-box label {{
+      font-size: 12px;
+      color: var(--muted);
+      font-weight: 500;
+    }}
+    .filter-box select {{
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 13px;
+      background: #f8fafc;
+      cursor: pointer;
+      outline: none;
+    }}
+    .filter-box select:focus {{ border-color: var(--accent); }}
 
     /* KPI */
     .kpi {{
-      display: flex;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
       gap: 12px;
-      flex-wrap: wrap;
-      margin-bottom: 28px;
+      margin-bottom: 24px;
     }}
-    .kpi > div {{
-      flex: 1;
-      min-width: 150px;
-      padding: 16px 18px;
+    .kpi-card {{
+      background: var(--card);
       border-radius: 12px;
-      color: white;
+      padding: 16px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+      border-left: 4px solid;
     }}
-    .kpi .label {{ font-size: 12px; opacity: 0.9; }}
-    .kpi .value {{ font-size: 24px; font-weight: 700; margin-top: 2px; }}
+    .kpi-card .label {{
+      font-size: 11px;
+      color: var(--muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }}
+    .kpi-card .value {{
+      font-size: 22px;
+      font-weight: 700;
+      margin-top: 4px;
+    }}
+    .kpi-card.blue {{ border-color: #0ea5e9; }}
+    .kpi-card.green {{ border-color: #10b981; }}
+    .kpi-card.orange {{ border-color: #f97316; }}
+    .kpi-card.purple {{ border-color: #8b5cf6; }}
+    .kpi-card.blue .value {{ color: #0369a1; }}
+    .kpi-card.green .value {{ color: #047857; }}
+    .kpi-card.orange .value {{ color: #c2410c; }}
+    .kpi-card.purple .value {{ color: #6d28d9; }}
 
-    /* Sections */
-    .section {{
-      display: none;
-      background: white;
-      border-radius: 12px;
-      padding: 20px;
-      margin-bottom: 20px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-    }}
+    /* SECTIONS */
+    .section {{ display: none; }}
     .section.active {{ display: block; }}
-    .section h2 {{
-      font-size: 17px;
-      margin-bottom: 14px;
+    .card {{
+      background: var(--card);
+      border-radius: 12px;
+      padding: 18px;
+      margin-bottom: 16px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }}
+    .card h3 {{
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 12px;
       padding-bottom: 8px;
-      border-bottom: 2px solid #e2e8f0;
+      border-bottom: 1px solid #e2e8f0;
+    }}
+    .grid-2 {{
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }}
+    @media (max-width: 800px) {{
+      .grid-2 {{ grid-template-columns: 1fr; }}
+      .sidebar {{ width: 200px; }}
+      .main {{ margin-left: 200px; padding: 16px; }}
     }}
     table {{
       width: 100%;
       border-collapse: collapse;
-      font-size: 13.5px;
-      margin-top: 12px;
+      font-size: 13px;
     }}
     th, td {{
-      padding: 9px 12px;
+      padding: 9px 11px;
       text-align: left;
       border-bottom: 1px solid #e2e8f0;
     }}
-    th {{ background: #f8fafc; font-weight: 600; }}
-    .reco ol {{
-      padding-left: 20px;
-      line-height: 1.75;
-      font-size: 14px;
-    }}
+    th {{ background: #f8fafc; font-weight: 600; font-size: 12px; }}
     .note {{
-      font-size: 12.5px;
-      color: #64748b;
+      font-size: 12px;
+      color: var(--muted);
       margin-top: 10px;
+      line-height: 1.5;
     }}
+    .reco ol {{
+      padding-left: 18px;
+      line-height: 1.8;
+      font-size: 13.5px;
+    }}
+    .reco li {{ margin-bottom: 8px; }}
   </style>
 </head>
 <body>
 
-  <!-- ========== SIDEBAR ========== -->
-  <aside class="sidebar">
+<aside class="sidebar">
+  <div class="brand">
     <h1>Togo Digital Inclusion</h1>
-    <p class="subtitle">Défi 02 · Économie Numérique<br>Togo AI Lab</p>
+    <p>Défi 02 · Économie Numérique<br>Togo AI Lab</p>
+  </div>
 
-    <button class="nav-btn active" onclick="showSection('overview')">Vue d'ensemble</button>
-    <button class="nav-btn" onclick="showSection('internet')">Usage Internet</button>
-    <button class="nav-btn" onclick="showSection('telecom')">Marché Télécoms</button>
-    <button class="nav-btn" onclick="showSection('map')">Carte des accès</button>
-    <button class="nav-btn" onclick="showSection('access')">Points d'accès</button>
-    <button class="nav-btn" onclick="showSection('ratios')">Ratios d'accès</button>
-    <button class="nav-btn" onclick="showSection('reco')">Recommandations</button>
+  <button class="nav-btn active" onclick="showSection('overview', this)">Vue d'ensemble</button>
+  <button class="nav-btn" onclick="showSection('internet', this)">Usage Internet</button>
+  <button class="nav-btn" onclick="showSection('telecom', this)">Marché Télécoms</button>
+  <button class="nav-btn" onclick="showSection('map', this)">Carte des accès</button>
+  <button class="nav-btn" onclick="showSection('access', this)">Points d'accès</button>
+  <button class="nav-btn" onclick="showSection('ratios', this)">Ratios d'accès</button>
+  <button class="nav-btn" onclick="showSection('detail', this)">Opérateurs & Catégories</button>
+  <button class="nav-btn" onclick="showSection('reco', this)">Recommandations</button>
 
-    <div class="sidebar-footer">
-      Sources : World Bank · ARCEP · RGPH-5<br>
-      Agents MM · Établissements financiers
+  <div class="sidebar-footer">
+    World Bank · ARCEP · RGPH-5<br>
+    Agents MM · Établissements
+  </div>
+</aside>
+
+<main class="main">
+
+  <!-- TOPBAR + FILTRE -->
+  <div class="topbar">
+    <h2 id="page-title">Vue d'ensemble</h2>
+    <div class="filter-box">
+      <label for="region-filter">Région</label>
+      <select id="region-filter" onchange="applyRegionFilter()">
+        {region_options}
+      </select>
     </div>
-  </aside>
+  </div>
 
-  <!-- ========== CONTENU ========== -->
-  <main class="main">
+  <!-- KPI (mis à jour par le filtre) -->
+  <div class="kpi" id="kpi-row">
+    <div class="kpi-card blue">
+      <div class="label">Pénétration Internet</div>
+      <div class="value">{latest_pen:.1f}%</div>
+    </div>
+    <div class="kpi-card green">
+      <div class="label">Agents Mobile Money</div>
+      <div class="value" id="kpi-agents">{n_agents:,}</div>
+    </div>
+    <div class="kpi-card orange">
+      <div class="label">Établissements</div>
+      <div class="value" id="kpi-etab">{n_etab:,}</div>
+    </div>
+    <div class="kpi-card purple">
+      <div class="label">Hab. / Agent</div>
+      <div class="value" id="kpi-ratio">—</div>
+    </div>
+  </div>
 
-    <!-- VUE D'ENSEMBLE -->
-    <div id="overview" class="section active">
-      <p class="page-title">Vue d'ensemble</p>
-      <p class="page-desc">Adoption numérique et inclusion financière au Togo</p>
-
-      <div class="kpi">
-        <div style="background:#0ea5e9">
-          <div class="label">Pénétration Internet</div>
-          <div class="value">{latest_pen:.1f}%</div>
-        </div>
-        <div style="background:#10b981">
-          <div class="label">Agents Mobile Money</div>
-          <div class="value">{n_agents:,}</div>
-        </div>
-        <div style="background:#f97316">
-          <div class="label">Établissements financiers</div>
-          <div class="value">{n_etab:,}</div>
-        </div>
-        <div style="background:#8b5cf6">
-          <div class="label">Population 2022</div>
-          <div class="value">{total_pop:,}</div>
-        </div>
-      </div>
-
-      <h2 style="font-size:16px; margin-bottom:10px;">Évolution rapide de l'Internet</h2>
+  <!-- OVERVIEW -->
+  <div id="overview" class="section active">
+    <div class="card">
+      <h3>Évolution de l'usage d'Internet</h3>
       {divs["internet"]}
     </div>
+  </div>
 
-    <!-- INTERNET -->
-    <div id="internet" class="section">
-      <h2>1. Évolution de l'usage d'Internet</h2>
+  <!-- INTERNET -->
+  <div id="internet" class="section">
+    <div class="card">
+      <h3>Usage d'Internet (% de la population)</h3>
       {divs["internet"]}
-      <p class="note">
-        Accélération nette à partir de 2016 (déploiement 3G/4G), 
-        puis bond important en 2020 (période COVID).
-      </p>
+      <p class="note">Accélération à partir de 2016 (3G/4G), fort rebond en 2020 (COVID).</p>
     </div>
+  </div>
 
-    <!-- TELECOMS -->
-    <div id="telecom" class="section">
-      <h2>2. Marché des télécommunications (2013-2019)</h2>
+  <!-- TELECOM -->
+  <div id="telecom" class="section">
+    <div class="card">
+      <h3>Abonnés télécoms (2013-2019)</h3>
       {divs["telecom_sub"]}
+    </div>
+    <div class="card">
+      <h3>Parts de marché mobile</h3>
       {divs["market"]}
+    </div>
+    <div class="card">
+      <h3>Chiffre d'affaires & Investissements</h3>
       {divs["revenue"]}
     </div>
+  </div>
 
-    <!-- CARTE -->
-    <div id="map" class="section">
-      <h2>3. Carte des points d'accès</h2>
+  <!-- MAP -->
+  <div id="map" class="section">
+    <div class="card">
+      <h3>Carte des points d'accès</h3>
       {divs["map"]}
-      <p class="note">
-        Bleu = Agents Mobile Money (échantillon) · 
-        Orange = Établissements financiers (banques, microfinance, assurances…).
-        Concentration visible autour de Lomé et des chefs-lieux.
-      </p>
+      <p class="note">Bleu = Agents MM (échantillon) · Orange = Établissements financiers.</p>
     </div>
+  </div>
 
-    <!-- POINTS D'ACCES -->
-    <div id="access" class="section">
-      <h2>4. Répartition des points d'accès par région</h2>
+  <!-- ACCESS -->
+  <div id="access" class="section">
+    <div class="card">
+      <h3>Agents Mobile Money par région</h3>
       {divs["agents_reg"]}
+    </div>
+    <div class="card">
+      <h3>Établissements financiers par région</h3>
       {divs["etab_reg"]}
     </div>
+  </div>
 
-    <!-- RATIOS -->
-    <div id="ratios" class="section">
-      <h2>5. Ratios d'accès (Population / Points de service)</h2>
+  <!-- RATIOS -->
+  <div id="ratios" class="section">
+    <div class="card">
+      <h3>Ratios d'accès</h3>
       {divs["ratios"]}
-      <h3 style="margin-top:18px; font-size:15px;">Tableau récapitulatif</h3>
-      {ratios_html}
-      <p class="note">
-        Plus le ratio « Habitants / Agent » est élevé, plus la région est sous-équipée.
-        Plateaux et Savanes sont prioritaires.
-      </p>
     </div>
+    <div class="card">
+      <h3>Tableau récapitulatif</h3>
+      {ratios_html}
+      <p class="note">Plus le ratio Habitants/Agent est élevé, plus la région est sous-équipée.</p>
+    </div>
+  </div>
 
-    <!-- RECOMMANDATIONS -->
-    <div id="reco" class="section">
-      <h2>6. Recommandations stratégiques</h2>
-      <div class="reco">
-        <ol>
-          <li>
-            <strong>Prioriser Plateaux et Savanes</strong> — 
-            ratios habitants/agent les plus élevés (531 et 427). 
-            Accélérer le déploiement d'agents et de la 4G.
-          </li>
-          <li>
-            <strong>Renforcer les établissements hors Maritime</strong> — 
-            Maritime concentre plus de 56 % des points bancaires/microfinance.
-          </li>
-          <li>
-            <strong>Capitaliser sur le réseau Mobile Money</strong> — 
-            ~20 000 agents déjà présents. Favoriser l'interopérabilité Yas–Moov 
-            et l'éducation financière en langues locales.
-          </li>
-          <li>
-            <strong>Accélérer le haut débit rural</strong> — 
-            après le ralentissement post-2018, relancer fibre et 4G hors des grandes villes.
-          </li>
-          <li>
-            <strong>Maintenir l'open data territoriale</strong> — 
-            publier régulièrement les localisations pour un suivi dynamique.
-          </li>
-        </ol>
+  <!-- DETAIL -->
+  <div id="detail" class="section">
+    <div class="grid-2">
+      <div class="card">
+        <h3>Agents par opérateur</h3>
+        {divs["operators"]}
+      </div>
+      <div class="card">
+        <h3>Établissements par catégorie</h3>
+        {divs["categories"]}
       </div>
     </div>
+  </div>
 
-  </main>
+  <!-- RECO -->
+  <div id="reco" class="section">
+    <div class="card reco">
+      <h3>Recommandations stratégiques</h3>
+      <ol>
+        <li><strong>Prioriser Plateaux et Savanes</strong> — ratios habitants/agent les plus élevés (531 et 427). Accélérer agents + 4G.</li>
+        <li><strong>Renforcer les établissements hors Maritime</strong> — Maritime concentre &gt;56 % des points bancaires/microfinance.</li>
+        <li><strong>Capitaliser sur le réseau Mobile Money</strong> — ~20 000 agents. Interopérabilité Yas–Moov + éducation financière locale.</li>
+        <li><strong>Accélérer le haut débit rural</strong> — relancer fibre et 4G hors des grandes villes après le ralentissement post-2018.</li>
+        <li><strong>Maintenir l'open data territoriale</strong> — publier régulièrement les localisations pour un suivi dynamique.</li>
+      </ol>
+    </div>
+  </div>
 
-  <script>
-    function showSection(id) {{
-      // Masquer toutes les sections
-      document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-      // Afficher la section demandée
-      document.getElementById(id).classList.add('active');
-      // Mettre à jour le bouton actif
-      document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-      event.target.classList.add('active');
-    }}
-  </script>
+</main>
+
+<script>
+  // Stats par région injectées depuis Python
+  const REGION_STATS = {region_json};
+
+  const TITLES = {{
+    overview: "Vue d'ensemble",
+    internet: "Usage Internet",
+    telecom: "Marché Télécoms",
+    map: "Carte des accès",
+    access: "Points d'accès",
+    ratios: "Ratios d'accès",
+    detail: "Opérateurs & Catégories",
+    reco: "Recommandations"
+  }};
+
+  function showSection(id, btn) {{
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    document.getElementById('page-title').textContent = TITLES[id] || id;
+  }}
+
+  function fmt(n) {{
+    if (n === null || n === undefined) return "—";
+    return Number(n).toLocaleString("fr-FR");
+  }}
+
+  function applyRegionFilter() {{
+    const region = document.getElementById("region-filter").value;
+    const s = REGION_STATS[region];
+    if (!s) return;
+
+    document.getElementById("kpi-agents").textContent = fmt(s.n_agents);
+    document.getElementById("kpi-etab").textContent = fmt(s.n_etab);
+    document.getElementById("kpi-ratio").textContent =
+      s.hab_per_agent !== null ? fmt(s.hab_per_agent) : "—";
+  }}
+
+  // Init KPI ratio pour "TOUTES"
+  applyRegionFilter();
+</script>
 
 </body>
 </html>
 """
 
-    out_path = OUTPUT_DIR / "dashboard_togo_digital.html"
-    out_path.write_text(html, encoding="utf-8")
-    print(f"\n✅ Dashboard avec sidebar généré !")
-    print(f"   → {out_path}")
-    print("   Ouvre ce fichier dans ton navigateur.")
+    out = OUTPUT_DIR / "dashboard_togo_digital.html"
+    out.write_text(html, encoding="utf-8")
+    print(f"\n✅ Dashboard amélioré généré → {out}")
 
 
 if __name__ == "__main__":
