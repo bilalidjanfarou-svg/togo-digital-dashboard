@@ -120,23 +120,25 @@ def main():
       min-height: 100vh;
     }}
 
-    /* SIDEBAR */
+        /* SIDEBAR améliorée */
     .sidebar {{
       width: var(--sidebar-w);
-      background: var(--sidebar);
+      background: linear-gradient(180deg, #0b1220 0%, #111827 100%);
       color: #e2e8f0;
-      padding: 22px 14px;
+      padding: 0;
       position: fixed;
       inset: 0 auto 0 0;
       overflow-y: auto;
       z-index: 50;
       display: flex;
       flex-direction: column;
+      box-shadow: 4px 0 24px rgba(0,0,0,0.15);
     }}
     .brand {{
-      padding: 4px 10px 20px;
-      border-bottom: 1px solid #1e293b;
-      margin-bottom: 16px;
+      padding: 22px 18px 18px;
+      background: rgba(14, 165, 233, 0.08);
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      margin-bottom: 12px;
     }}
     .brand h1 {{
       font-size: 15px;
@@ -147,35 +149,62 @@ def main():
     .brand p {{
       font-size: 11px;
       color: #64748b;
-      margin-top: 4px;
+      margin-top: 5px;
+    }}
+    .nav-group {{
+      padding: 0 10px;
+      flex: 1;
     }}
     .nav-btn {{
-      display: block;
+      display: flex;
+      align-items: center;
+      gap: 10px;
       width: 100%;
       text-align: left;
       background: transparent;
       border: none;
       color: #94a3b8;
-      padding: 10px 12px;
-      border-radius: 8px;
+      padding: 11px 12px;
+      border-radius: 9px;
       font-size: 13px;
       font-weight: 500;
       cursor: pointer;
       margin-bottom: 3px;
-      transition: 0.15s;
+      transition: all 0.18s ease;
     }}
-    .nav-btn:hover {{ background: #1e293b; color: #f1f5f9; }}
+    .nav-btn .icon {{
+      width: 20px;
+      text-align: center;
+      font-size: 14px;
+      opacity: 0.85;
+    }}
+    .nav-btn:hover {{
+      background: rgba(255,255,255,0.06);
+      color: #f1f5f9;
+      transform: translateX(3px);
+    }}
     .nav-btn.active {{
-      background: var(--accent);
+      background: linear-gradient(135deg, #0ea5e9, #0284c7);
       color: #fff;
+      box-shadow: 0 4px 12px rgba(14, 165, 233, 0.35);
     }}
     .sidebar-footer {{
-      margin-top: auto;
-      padding: 14px 10px 4px;
-      border-top: 1px solid #1e293b;
+      padding: 14px 18px 18px;
+      border-top: 1px solid rgba(255,255,255,0.06);
       font-size: 10.5px;
       color: #475569;
       line-height: 1.5;
+    }}
+
+    /* KPI avec animation */
+    .kpi-card .value {{
+      font-size: 22px;
+      font-weight: 700;
+      margin-top: 4px;
+      font-variant-numeric: tabular-nums;
+    }}
+    .kpi-card.loading .value {{
+      opacity: 0.4;
     }}
 
     /* MAIN */
@@ -317,14 +346,32 @@ def main():
     <p>Défi 02 · Économie Numérique<br>Togo AI Lab</p>
   </div>
 
-  <button class="nav-btn active" onclick="showSection('overview', this)">Vue d'ensemble</button>
-  <button class="nav-btn" onclick="showSection('internet', this)">Usage Internet</button>
-  <button class="nav-btn" onclick="showSection('telecom', this)">Marché Télécoms</button>
-  <button class="nav-btn" onclick="showSection('map', this)">Carte des accès</button>
-  <button class="nav-btn" onclick="showSection('access', this)">Points d'accès</button>
-  <button class="nav-btn" onclick="showSection('ratios', this)">Ratios d'accès</button>
-  <button class="nav-btn" onclick="showSection('detail', this)">Opérateurs & Catégories</button>
-  <button class="nav-btn" onclick="showSection('reco', this)">Recommandations</button>
+  <div class="nav-group">
+    <button class="nav-btn active" onclick="showSection('overview', this)">
+      <span class="icon">▣</span> Vue d'ensemble
+    </button>
+    <button class="nav-btn" onclick="showSection('internet', this)">
+      <span class="icon">↗</span> Usage Internet
+    </button>
+    <button class="nav-btn" onclick="showSection('telecom', this)">
+      <span class="icon">◉</span> Marché Télécoms
+    </button>
+    <button class="nav-btn" onclick="showSection('map', this)">
+      <span class="icon">◎</span> Carte des accès
+    </button>
+    <button class="nav-btn" onclick="showSection('access', this)">
+      <span class="icon">☰</span> Points d'accès
+    </button>
+    <button class="nav-btn" onclick="showSection('ratios', this)">
+      <span class="icon">≡</span> Ratios d'accès
+    </button>
+    <button class="nav-btn" onclick="showSection('detail', this)">
+      <span class="icon">◐</span> Opérateurs & Catégories
+    </button>
+    <button class="nav-btn" onclick="showSection('reco', this)">
+      <span class="icon">★</span> Recommandations
+    </button>
+  </div>
 
   <div class="sidebar-footer">
     World Bank · ARCEP · RGPH-5<br>
@@ -463,7 +510,6 @@ def main():
 </main>
 
 <script>
-  // Stats par région injectées depuis Python
   const REGION_STATS = {region_json};
 
   const TITLES = {{
@@ -487,22 +533,59 @@ def main():
 
   function fmt(n) {{
     if (n === null || n === undefined) return "—";
-    return Number(n).toLocaleString("fr-FR");
+    return Math.round(Number(n)).toLocaleString("fr-FR");
   }}
 
-  function applyRegionFilter() {{
+  /* ===== Animation count-up ===== */
+  function animateValue(el, end, duration) {{
+    if (end === null || end === undefined) {{
+      el.textContent = "—";
+      return;
+    }}
+    const start = 0;
+    const startTime = performance.now();
+    end = Number(end);
+
+    function tick(now) {{
+      const progress = Math.min((now - startTime) / duration, 1);
+      // easeOut
+      const eased = 1 - Math.pow(1 - progress, 3);
+      const current = Math.round(start + (end - start) * eased);
+      el.textContent = current.toLocaleString("fr-FR");
+      if (progress < 1) requestAnimationFrame(tick);
+    }}
+    requestAnimationFrame(tick);
+  }}
+
+  function applyRegionFilter(animate) {{
     const region = document.getElementById("region-filter").value;
     const s = REGION_STATS[region];
     if (!s) return;
 
-    document.getElementById("kpi-agents").textContent = fmt(s.n_agents);
-    document.getElementById("kpi-etab").textContent = fmt(s.n_etab);
-    document.getElementById("kpi-ratio").textContent =
-      s.hab_per_agent !== null ? fmt(s.hab_per_agent) : "—";
+    const elAgents = document.getElementById("kpi-agents");
+    const elEtab = document.getElementById("kpi-etab");
+    const elRatio = document.getElementById("kpi-ratio");
+
+    if (animate) {{
+      animateValue(elAgents, s.n_agents, 900);
+      animateValue(elEtab, s.n_etab, 900);
+      animateValue(elRatio, s.hab_per_agent, 900);
+    }} else {{
+      elAgents.textContent = fmt(s.n_agents);
+      elEtab.textContent = fmt(s.n_etab);
+      elRatio.textContent = s.hab_per_agent !== null ? fmt(s.hab_per_agent) : "—";
+    }}
   }}
 
-  // Init KPI ratio pour "TOUTES"
-  applyRegionFilter();
+  // Au chargement de la page → animation des chiffres
+  document.addEventListener("DOMContentLoaded", function() {{
+    applyRegionFilter(true);
+  }});
+
+  // Changement de région → aussi avec animation
+  document.getElementById("region-filter").addEventListener("change", function() {{
+    applyRegionFilter(true);
+  }});
 </script>
 
 </body>
