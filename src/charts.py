@@ -6,7 +6,7 @@ Défi 02 - Togo AI Lab
 import plotly.graph_objects as go
 import plotly.express as px
 from plotly.subplots import make_subplots
-
+import pandas as pd
 
 def chart_internet_evolution(internet_df):
     """
@@ -235,4 +235,55 @@ def chart_access_ratios(ratios):
         height=450,
         showlegend=False
     )
+    return fig
+
+def chart_agents_by_operator(agents: pd.DataFrame):
+    """
+    Répartition des agents Mobile Money par opérateur.
+    """
+    def simplify_op(op):
+        op = str(op).lower()
+        if "moov" in op and "togocom" in op:
+            return "Moov + Togocom"
+        if "moov" in op:
+            return "Moov"
+        if "togocom" in op or "togo" in op:
+            return "Togocom / Yas"
+        return "Autre / Nsp"
+
+    df = agents.copy()
+    df["op_simple"] = df["operateur"].apply(simplify_op)
+    counts = df["op_simple"].value_counts().reset_index()
+    counts.columns = ["operateur", "count"]
+
+    fig = px.pie(
+        counts,
+        values="count",
+        names="operateur",
+        title="Répartition des agents Mobile Money par opérateur",
+        color_discrete_sequence=["#0ea5e9", "#f97316", "#10b981", "#94a3b8"],
+        hole=0.35,
+    )
+    fig.update_traces(textposition="inside", textinfo="percent+label")
+    fig.update_layout(template="plotly_white", height=400)
+    return fig
+
+
+def chart_etab_by_category(etab: pd.DataFrame):
+    """
+    Répartition des établissements financiers par catégorie.
+    """
+    counts = etab["activite_categorie"].value_counts().reset_index()
+    counts.columns = ["categorie", "count"]
+
+    fig = px.pie(
+        counts,
+        values="count",
+        names="categorie",
+        title="Répartition des établissements par catégorie",
+        color_discrete_sequence=px.colors.qualitative.Set2,
+        hole=0.35,
+    )
+    fig.update_traces(textposition="inside", textinfo="percent+label")
+    fig.update_layout(template="plotly_white", height=400)
     return fig
