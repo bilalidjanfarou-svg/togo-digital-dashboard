@@ -1,19 +1,19 @@
 """
-Carte interactive des agents Mobile Money et établissements financiers
-Compatible Plotly récent (Scattermap)
+Carte des agents Mobile Money et établissements financiers
+Version sans tuiles externes (Scattergeo) — fiable partout
 """
 
 import plotly.graph_objects as go
 import pandas as pd
 
 
-def chart_map(agents: pd.DataFrame, etab: pd.DataFrame, sample_agents: int = 2000):
+def chart_map(agents: pd.DataFrame, etab: pd.DataFrame, sample_agents: int = 2500):
     """
-    Carte Plotly (OpenStreetMap) :
-    - Agents MM en bleu (échantillon pour la performance)
+    Carte géographique simple :
+    - Agents MM en bleu (échantillon)
     - Établissements financiers en orange
+    Pas de dépendance à OpenStreetMap / Carto.
     """
-    # Échantillon aléatoire des agents (évite de surcharger le navigateur)
     if len(agents) > sample_agents:
         agents_sample = agents.sample(n=sample_agents, random_state=42)
     else:
@@ -22,12 +22,12 @@ def chart_map(agents: pd.DataFrame, etab: pd.DataFrame, sample_agents: int = 200
     fig = go.Figure()
 
     # --- Agents Mobile Money ---
-    fig.add_trace(go.Scattermap(
+    fig.add_trace(go.Scattergeo(
         lat=agents_sample["lat"],
         lon=agents_sample["lon"],
         mode="markers",
-        marker=dict(size=5, color="#0ea5e9", opacity=0.6),
-        name=f"Agents MM (échantillon {len(agents_sample):,})",
+        marker=dict(size=4, color="#0ea5e9", opacity=0.55, line=dict(width=0)),
+        name=f"Agents MM ({len(agents_sample):,})",
         hovertemplate=(
             "<b>Agent Mobile Money</b><br>"
             "Région : %{customdata[0]}<br>"
@@ -37,11 +37,11 @@ def chart_map(agents: pd.DataFrame, etab: pd.DataFrame, sample_agents: int = 200
     ))
 
     # --- Établissements financiers ---
-    fig.add_trace(go.Scattermap(
+    fig.add_trace(go.Scattergeo(
         lat=etab["lat"],
         lon=etab["lon"],
         mode="markers",
-        marker=dict(size=8, color="#f97316", opacity=0.85),
+        marker=dict(size=7, color="#f97316", opacity=0.9, line=dict(width=0.5, color="white")),
         name=f"Établissements ({len(etab):,})",
         hovertemplate=(
             "<b>%{customdata[0]}</b><br>"
@@ -53,18 +53,29 @@ def chart_map(agents: pd.DataFrame, etab: pd.DataFrame, sample_agents: int = 200
 
     fig.update_layout(
         title="Carte des points d'accès (Agents MM + Établissements financiers)",
-        map=dict(
-            style="open-street-map",
-            center=dict(lat=8.5, lon=1.2),  # centre approximatif du Togo
-            zoom=6,
+        geo=dict(
+            scope="africa",
+            resolution=50,
+            showland=True,
+            landcolor="#f1f5f9",
+            showocean=True,
+            oceancolor="#e0f2fe",
+            showcountries=True,
+            countrycolor="#94a3b8",
+            showframe=False,
+            # Zoom sur le Togo
+            lataxis=dict(range=[5.8, 11.3]),
+            lonaxis=dict(range=[-0.3, 2.0]),
+            projection_type="mercator",
         ),
-        height=550,
-        margin=dict(l=0, r=0, t=40, b=0),
+        height=560,
+        margin=dict(l=0, r=0, t=50, b=0),
         legend=dict(
             orientation="h",
             yanchor="bottom",
-            y=0.01,
-            x=0.01,
+            y=0.02,
+            x=0.02,
+            bgcolor="rgba(255,255,255,0.8)",
         ),
     )
     return fig
