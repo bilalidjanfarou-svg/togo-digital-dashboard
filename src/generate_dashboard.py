@@ -75,15 +75,24 @@ def main():
         "categories": chart_etab_by_category(etab),
     }
 
-    print("4. Conversion HTML...")
     divs = {}
     first = True
     for key, fig in figs.items():
         divs[key] = fig.to_html(
             full_html=False,
             include_plotlyjs="cdn" if first else False,
-        )
+            div_id=f"plot-{key}",          # id unique
+            config={"displayModeBar": False},
+            )
         first = False
+
+    # 2e version du graphique Internet pour la section dédiée (id différent)
+    divs["internet2"] = figs["internet"].to_html(
+        full_html=False,
+        include_plotlyjs=False,
+        div_id="plot-internet-2",
+        config={"displayModeBar": False},
+    )
 
     ratios_html = ratios.to_html(index=False, float_format="%.1f", border=0)
 
@@ -392,7 +401,7 @@ def main():
     </div>
   </div>
 
-  <!-- KPI (mis à jour par le filtre) -->
+    <!-- KPI (mis à jour par le filtre) -->
   <div class="kpi" id="kpi-row">
     <div class="kpi-card blue">
       <div class="label">Pénétration Internet</div>
@@ -400,15 +409,15 @@ def main():
     </div>
     <div class="kpi-card green">
       <div class="label">Agents Mobile Money</div>
-      <div class="value" id="kpi-agents">{n_agents:,}</div>
+      <div class="value" id="kpi-agents">0</div>
     </div>
     <div class="kpi-card orange">
       <div class="label">Établissements</div>
-      <div class="value" id="kpi-etab">{n_etab:,}</div>
+      <div class="value" id="kpi-etab">0</div>
     </div>
     <div class="kpi-card purple">
       <div class="label">Hab. / Agent</div>
-      <div class="value" id="kpi-ratio">—</div>
+      <div class="value" id="kpi-ratio">0</div>
     </div>
   </div>
 
@@ -424,7 +433,7 @@ def main():
   <div id="internet" class="section">
     <div class="card">
       <h3>Usage d'Internet (% de la population)</h3>
-      {divs["internet"]}
+      {divs["internet2"]}
       <p class="note">Accélération à partir de 2016 (3G/4G), fort rebond en 2020 (COVID).</p>
     </div>
   </div>
